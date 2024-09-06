@@ -288,4 +288,5 @@ else:
     start = st.button("Generate Quiz")
 
     if start:
-        run_quiz_chain(docs, topic if topic else file.name)
+        response = run_quiz_chain(docs, topic if topic else file.name)
+        st.write(response)
