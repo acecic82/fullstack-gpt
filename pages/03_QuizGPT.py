@@ -6,10 +6,22 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain.chat_models import ChatOpenAI
 from langchain.callbacks import StreamingStdOutCallbackHandler
 from langchain.prompts import ChatPromptTemplate
+from langchain.schema import BaseOutputParser
 
 from pathlib import Path
+import json
 
 QUIZ_DIR = "./.cache/quiz_files/"
+
+
+class JsonOutputParser(BaseOutputParser):
+    def parse(self, text):
+        text = text.replace("```json", "").replace("```", "")
+        return json.loads(text)
+
+
+output_parser = JsonOutputParser()
+
 
 st.set_page_config(
     page_title="QuizGPT",
@@ -218,6 +230,25 @@ def split_file(file):
     return docs
 
 
+@st.cache_data(show_spinner="Making quiz...")
+def run_quiz_chain(_docs, topic):
+    chain = (
+        {
+            "context": questions_chain,
+        }
+        | formatting_chain
+        | output_parser
+    )
+
+    return chain.invoke(_docs)
+
+
+@st.cache_data(show_spinner="Searching Wikipedia...")
+def wiki_search(term):
+    retriever = WikipediaRetriever(top_k_results=5)
+    return retriever.get_relevant_documents(term)
+
+
 with st.sidebar:
     docs = None
 
@@ -234,13 +265,12 @@ with st.sidebar:
             "Upload a .docx , .txt or .pdf file",
             type=["pdf", "txt", "docx"],
         )
+        if file:
+            docs = split_file(file)
     else:
         topic = st.text_input("Search Wikipedia...")
         if topic:
-            retriever = WikipediaRetriever(top_k_results=5)
-            with st.status("Searching WIkipedia..."):
-                docs = retriever.get_relevant_documents(topic)
-                st.write(docs)
+            docs = wiki_search(topic)
 
 
 if not docs:
@@ -258,11 +288,4 @@ else:
     start = st.button("Generate Quiz")
 
     if start:
-        question_response = questions_chain.invoke(docs)
-        st.write(question_response.content)
-
-        format_response = formatting_chain.invoke(
-            {"context": question_response.content}
-        )
-
-        st.write(format_response.content)
+        run_quiz_chain(docs, topic if topic else file.name)
