@@ -261,6 +261,8 @@ with st.sidebar:
     )
 
     if choice == "File":
+        topic = None
+
         file = st.file_uploader(
             "Upload a .docx , .txt or .pdf file",
             type=["pdf", "txt", "docx"],
@@ -285,8 +287,25 @@ if not docs:
     )
 else:
 
-    start = st.button("Generate Quiz")
+    response = run_quiz_chain(docs, topic if topic else file.name)
 
-    if start:
-        response = run_quiz_chain(docs, topic if topic else file.name)
-        st.write(response)
+    with st.form("questions_form"):
+        cnt = 0
+        for question in response["questions"]:
+            st.write(question["question"])
+
+            value = st.radio(
+                "Select an option.",
+                [answer["answer"] for answer in question["answers"]],
+                index=None,
+                key=cnt,
+            )
+
+            if {"answer": value, "correct": True} in question["answers"]:
+                st.success(value)
+            else:
+                st.error(value)
+
+            cnt += 1
+
+        button = st.form_submit_button()
